@@ -1,0 +1,15 @@
+{
+  "name": "mecard",
+  "version": "1.0.0",
+  "description": "Generate a self-contained digital business card from simple config files",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node build.js --serve"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4",
+    "yaml": "^2.7.0"
+  }
+}

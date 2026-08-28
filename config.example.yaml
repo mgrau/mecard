@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────────
+#  mecard — copy to config.yaml and edit
+# ─────────────────────────────────────────────
+#  See README.md for the icon list and all
+#  theme and option keys.
+# ─────────────────────────────────────────────
+
+# ── Identity ──────────────────────────────────
+name: Ada Lovelace
+title: Research Fellow
+tagline: Analytical Engines
+organization: Example University
+department: Department of Mathematics
+
+# ── Contact ───────────────────────────────────
+#  Shown as readable text. Leave blank to omit.
+email: ada@example.edu
+phone: "(555) 123-4567"
+website: https://example.edu/~ada
+
+# ── Profile photo ─────────────────────────────
+#  Local path or URL. Square, ~400×400px.
+#  Omit to fall back to initials.
+photo: photo.jpg
+
+# ── Links ─────────────────────────────────────
+#  Icon buttons. Contact details above already
+#  appear as text, so don't repeat them here.
+links:
+  - label: Google Scholar
+    url: https://scholar.google.com/citations?user=XXXXXXXX
+    icon: scholar
+
+  - label: CV
+    url: https://example.edu/~ada/cv.pdf
+    icon: file
+
+  - label: GitHub
+    url: https://github.com/username
+    icon: github
+
+  - label: ORCID
+    url: https://orcid.org/0000-0000-0000-0000
+    icon: orcid
+
+# ── Card URL ──────────────────────────────────
+#  Where the card is hosted. The QR code encodes
+#  this, so it must match your Pages URL.
+url: https://username.github.io/mecard
+
+# ── Theme ─────────────────────────────────────
+#  Three background bands, top-left to
+#  bottom-right, plus two accents.
+theme:
+  dark: "#1e1e22"        # Top band
+  mid: "#2a3330"         # Middle band (omit to auto-blend)
+  light: "#1b4742"       # Bottom band
+  accent: "#5b9eb8"      # Links, icons, tagline
+  pop: "#b34d3a"         # Save Contact button
+  page: "#131315"        # Page behind the card
+  text: "#fbf9f6"        # Foreground text
+
+# ── Options ───────────────────────────────────
+options:
+  glint: false           # Light sweep across the card
+  waves: true            # Animate the band boundaries
+  qr: true               # Show the QR code
+  saveContact: true      # Show the Save Contact button
+  qrLabel: Scan to connect
+  saveLabel: Save Contact

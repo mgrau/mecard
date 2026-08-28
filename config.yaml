@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────────
+#  mecard — Digital Business Card
+# ─────────────────────────────────────────────
+#  Edit this file and push. GitHub Actions
+#  builds and deploys. See README.md for the
+#  full list of icons and theme options.
+# ─────────────────────────────────────────────
+
+# ── Identity ──────────────────────────────────
+name: Matt Grau
+title: Assistant Professor
+tagline: Experimental AMO Physics
+organization: Old Dominion University
+department: Department of Physics
+
+# ── Contact ───────────────────────────────────
+#  Shown as readable text. Leave blank to omit.
+email: mgrau@odu.edu
+phone: "(757) 683-5827"
+website: https://graulab.org
+
+# ── Profile photo ─────────────────────────────
+#  Local path or URL. Square, ~400×400px.
+#  Omit to fall back to initials.
+photo: photo.jpg
+
+# ── Links ─────────────────────────────────────
+#  Icon buttons. See README for all icon names.
+links:
+  - label: Google Scholar
+    url: https://scholar.google.com/citations?user=lnh9kdIAAAAJ
+    icon: scholar
+
+  - label: CV
+    url: https://www.graulab.org/assets/pdf/grau-cv.pdf
+    icon: file
+
+  - label: GitHub
+    url: https://github.com/mgrau
+    icon: github
+
+  - label: ORCID
+    url: https://orcid.org/0000-0002-2684-6923
+    icon: orcid
+
+# ── Card URL ──────────────────────────────────
+#  Where the card is hosted. The QR code encodes
+#  this, so it must match your Pages URL.
+url: https://mgrau.github.io/mecard
+
+# ── Theme ─────────────────────────────────────
+#  Three background bands, top-left to
+#  bottom-right, plus two accents.
+theme:
+  dark: "#1e1e22"        # Top band — volcanic ash
+  mid: "#2a3330"         # Middle band — gray-green
+  light: "#1b4742"       # Bottom band — deep teal
+  accent: "#5b9eb8"      # Links and icons — glacier blue
+  pop: "#b34d3a"         # Save Contact — lava red
+  page: "#131315"        # Page behind the card — obsidian
+  text: "#fbf9f6"        # Foreground text
+
+# ── Options ───────────────────────────────────
+options:
+  glint: false           # Light sweep across the card
+  waves: true            # Animate the band boundaries
+  qr: true               # Show the QR code
+  saveContact: true      # Show the Save Contact button
+  qrLabel: Scan to connect
+  saveLabel: Save Contact
