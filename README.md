@@ -94,8 +94,11 @@ options:
   waves: true               # animate the band boundaries
   qr: true
   saveContact: true
+  share: true               # Share button, where the device supports it
+  pwa: true                 # installable, works offline
   qrLabel: Scan to connect
   saveLabel: Save Contact
+  shareLabel: Share
 ```
 
 All default to the values above. Animation is disabled automatically for visitors who set `prefers-reduced-motion`.
@@ -106,7 +109,11 @@ The QR code encodes the card's URL rather than the contact data itself, so it st
 
 **Save Contact** downloads a vCard 3.0 `.vcf` with the photo embedded, which imports cleanly on iOS and Android.
 
-`index.html` is generated and gitignored — the workflow builds it on deploy.
+**Share** uses the Web Share API to hand the card's URL to the system share sheet. The button stays hidden on platforms without it, so nothing appears broken on older desktop browsers.
+
+**PWA**: with `pwa: true` the build also emits `manifest.webmanifest`, `sw.js`, and icons, so the card can be added to your home screen and opens full-screen and offline. Turn it off if you'd rather have `index.html` be the only output — the page itself is self-contained either way.
+
+The build writes to `dist/`, which is gitignored; the workflow publishes that directory.
 
 ## License
 

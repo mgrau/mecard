@@ -1,8 +1,11 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from "fs";
 import { parse } from "yaml";
 import QRCode from "qrcode";
-import { extname } from "path";
+import { extname, join } from "path";
+import { createHash } from "crypto";
+
+const OUT = "dist";
 
 // ── Read config ──────────────────────────────────────────────
 if (!existsSync("config.yaml")) {
@@ -51,8 +54,11 @@ const opts = {
   waves: config.options?.waves ?? true,
   qr: config.options?.qr ?? true,
   saveContact: config.options?.saveContact ?? true,
+  share: config.options?.share ?? true,
+  pwa: config.options?.pwa ?? true,
   qrLabel: config.options?.qrLabel ?? "Scan to connect",
   saveLabel: config.options?.saveLabel ?? "Save Contact",
+  shareLabel: config.options?.shareLabel ?? "Share",
 };
 
 const accentRgb = hexToRgb(theme.accent);
@@ -60,9 +66,33 @@ const popRgb = hexToRgb(theme.pop);
 const textRgb = hexToRgb(theme.text);
 
 // ── Process photo ────────────────────────────────────────────
-let photoSrc = null;
-let photoBase64 = null;
+// Reads intrinsic dimensions straight from the file header so the PWA
+// manifest can declare an accurate icon size without an image library.
+function imageSize(buf) {
+  // PNG: IHDR width/height are big-endian uint32s at a fixed offset
+  if (buf.length > 24 && buf.readUInt32BE(0) === 0x89504e47) {
+    return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+  }
+  // JPEG: walk the marker segments looking for a Start Of Frame
+  if (buf.length > 4 && buf.readUInt16BE(0) === 0xffd8) {
+    let i = 2;
+    while (i < buf.length - 9) {
+      if (buf[i] !== 0xff) { i++; continue; }
+      const marker = buf[i + 1];
+      // SOF0-SOF15, excluding DHT (c4), JPG (c8) and DAC (cc)
+      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+        return { h: buf.readUInt16BE(i + 5), w: buf.readUInt16BE(i + 7) };
+      }
+      i += 2 + buf.readUInt16BE(i + 2);
+    }
+  }
+  return null;
+}
+
+let photoSrc = null;      // what the <img> uses (data URI or remote URL)
+let photoBase64 = null;   // for embedding in the vCard
 let photoMimeType = "JPEG";
+let photoFile = null;     // { name, data, size } for the PWA icon
 
 if (config.photo) {
   if (config.photo.startsWith("http")) {
@@ -74,10 +104,18 @@ if (config.photo) {
     photoMimeType = mime.toUpperCase();
     photoBase64 = data.toString("base64");
     photoSrc = `data:image/${mime};base64,${photoBase64}`;
+    photoFile = { name: `icon.${ext}`, data, mime, size: imageSize(data) };
   } else {
     console.warn(`! photo not found: ${config.photo} — using initials`);
   }
 }
+
+const initials = config.name
+  .split(/\s+/)
+  .map((w) => w[0])
+  .join("")
+  .toUpperCase()
+  .slice(0, 2);
 
 // ── QR code (light modules for dark background) ──────────────
 const qrSvg = await QRCode.toString(config.url, {
@@ -146,6 +184,7 @@ const ICONS = {
   orcid: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.372 0 0 5.372 0 12s5.372 12 12 12 12-5.372 12-12S18.628 0 12 0zM7.369 4.378c.525 0 .947.431.947.947s-.422.947-.947.947a.95.95 0 0 1-.947-.947c0-.525.422-.947.947-.947zm-.722 3.038h1.444v10.041H6.647V7.416zm3.562 0h3.9c3.712 0 5.344 2.653 5.344 5.025 0 2.578-2.016 5.025-5.325 5.025h-3.919V7.416zm1.444 1.303v7.444h2.297c3.272 0 4.022-2.484 4.022-3.722 0-1.397-.759-3.722-3.853-3.722h-2.466z"/></svg>`,
   link: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
   download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+  share: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`,
 };
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -164,12 +203,6 @@ function buildPhotoHtml() {
         <img class="photo" src="${photoSrc}" alt="${escHtml(config.name)}" />
       </div>`;
   }
-  const initials = config.name
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
   return `      <div class="photo-wrap">
         <div class="photo-glow"></div>
         <div class="photo photo-initials">${initials}</div>
@@ -238,18 +271,29 @@ function buildLinksHtml() {
 }
 
 function buildQrSection() {
-  if (!opts.qr && !opts.saveContact) return "";
+  if (!opts.qr && !opts.saveContact && !opts.share) return "";
   const parts = [];
   if (opts.qr) {
     parts.push(`        <div class="qr-container">${qrSvg}</div>`);
     if (opts.qrLabel)
       parts.push(`        <p class="qr-label">${escHtml(opts.qrLabel)}</p>`);
   }
+
+  const actions = [];
   if (opts.saveContact) {
-    parts.push(`        <a href="${vcardDataUri}" download="${escHtml(vcardFilename)}" class="save-btn">
-          ${ICONS.download} ${escHtml(opts.saveLabel)}
-        </a>`);
+    actions.push(`          <a href="${vcardDataUri}" download="${escHtml(vcardFilename)}" class="action-btn save-btn">
+            ${ICONS.download} ${escHtml(opts.saveLabel)}
+          </a>`);
   }
+  if (opts.share) {
+    // Revealed by script only where navigator.share exists
+    actions.push(`          <button type="button" class="action-btn share-btn" hidden>
+            ${ICONS.share} ${escHtml(opts.shareLabel)}
+          </button>`);
+  }
+  if (actions.length)
+    parts.push(`        <div class="actions">\n${actions.join("\n")}\n        </div>`);
+
   return `      <div class="qr-section">\n${parts.join("\n")}\n      </div>`;
 }
 
@@ -329,7 +373,17 @@ const html = `<!DOCTYPE html>
   <meta property="og:description" content="${escHtml([config.title, config.organization].filter(Boolean).join(" — "))}">
   <meta property="og:url" content="${escHtml(config.url)}">
   <meta property="og:type" content="profile">
-
+${
+  opts.pwa
+    ? `  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="${escHtml(config.name)}">
+  <link rel="apple-touch-icon" href="${photoFile ? photoFile.name : "icon.svg"}">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+`
+    : ""
+}
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -656,19 +710,23 @@ ${
       animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.75s backwards;
     }
 
-    /* ── Save Contact ──────────────────── */
-    .save-btn {
+    /* ── Actions ───────────────────────── */
+    .actions {
+      display: flex;
+      gap: 0.55rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 1.1rem;
+    }
+
+    .action-btn {
       display: inline-flex;
       align-items: center;
       gap: 0.45rem;
-      margin-top: 1.1rem;
-      padding: 0.7rem 1.4rem;
-      background: linear-gradient(155deg, rgba(${popRgb}, 0.34), rgba(${popRgb}, 0.14));
-      border: 1px solid rgba(${popRgb}, 0.45);
+      padding: 0.7rem 1.35rem;
       border-radius: 13px;
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      color: #fbeae5;
       font-size: 0.94rem;
       font-weight: 600;
       letter-spacing: 0.01em;
@@ -683,7 +741,20 @@ ${
       animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.8s backwards;
     }
 
-    .save-btn svg { width: 19px; height: 19px; }
+    .action-btn[hidden] { display: none; }
+    .action-btn svg { width: 19px; height: 19px; }
+    .action-btn:active { transform: scale(0.97); }
+
+    .action-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+
+    .save-btn {
+      background: linear-gradient(155deg, rgba(${popRgb}, 0.34), rgba(${popRgb}, 0.14));
+      border: 1px solid rgba(${popRgb}, 0.45);
+      color: #fbeae5;
+    }
 
     .save-btn:hover {
       background: linear-gradient(155deg, rgba(${popRgb}, 0.5), rgba(${popRgb}, 0.24));
@@ -696,7 +767,22 @@ ${
         0 4px 10px rgba(0, 0, 0, 0.3);
     }
 
-    .save-btn:active { transform: scale(0.97); }
+    .share-btn {
+      background: linear-gradient(155deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.035));
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      color: rgba(${textRgb}, 0.92);
+    }
+
+    .share-btn:hover {
+      background: linear-gradient(155deg, rgba(${accentRgb}, 0.3), rgba(${accentRgb}, 0.1));
+      border-color: rgba(${accentRgb}, 0.45);
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.3),
+        0 10px 26px rgba(${accentRgb}, 0.22),
+        0 4px 10px rgba(0, 0, 0, 0.3);
+    }
 
     /* ── Animations ────────────────────── */
     @keyframes cardEntrance {
@@ -772,28 +858,176 @@ ${buildQrSection()}
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
       for (const svg of document.querySelectorAll('svg.wave-layer')) svg.pauseAnimations();
     }
-  </script>
+${
+  opts.share
+    ? `
+    // Only offer Share where the platform can actually handle it
+    const shareBtn = document.querySelector('.share-btn');
+    if (shareBtn && navigator.share) {
+      shareBtn.hidden = false;
+      shareBtn.addEventListener('click', async () => {
+        try {
+          await navigator.share(${JSON.stringify({
+            title: config.name,
+            text: [config.title, config.organization].filter(Boolean).join(" — "),
+            url: config.url,
+          })});
+        } catch (err) {
+          // A cancelled share rejects with AbortError; nothing to report
+          if (err.name !== 'AbortError') console.error(err);
+        }
+      });
+    }
+`
+    : ""
+}${
+  opts.pwa
+    ? `
+    if ('serviceWorker' in navigator) {
+      addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+    }
+`
+    : ""
+}  </script>
 </body>
 </html>`;
 
+// ── PWA assets ───────────────────────────────────────────────
+// A square SVG wrapping the photo (or the initials) sidesteps needing an
+// image library to produce the several raster sizes a manifest usually wants.
+function buildIconSvg() {
+  const inner = photoSrc
+    ? `<image href="${photoSrc}" x="0" y="0" width="512" height="512" preserveAspectRatio="xMidYMid slice"/>`
+    : `<text x="256" y="256" text-anchor="middle" dominant-baseline="central"
+        font-family="-apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif"
+        font-size="220" font-weight="600" fill="${theme.text}">${escHtml(initials)}</text>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="${theme.dark}"/>
+  ${inner}
+</svg>`;
+}
+
+function buildManifest() {
+  const icons = [
+    { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+  ];
+  // Declare the raster photo too, at its true size, for platforms that skip SVG
+  if (photoFile?.size) {
+    icons.push({
+      src: photoFile.name,
+      sizes: `${photoFile.size.w}x${photoFile.size.h}`,
+      type: `image/${photoFile.mime}`,
+      purpose: "any",
+    });
+  }
+  return JSON.stringify(
+    {
+      name: config.name,
+      short_name: config.name.split(/\s+/)[0],
+      description: [config.title, config.organization].filter(Boolean).join(" — "),
+      start_url: ".",
+      scope: ".",
+      display: "standalone",
+      orientation: "portrait",
+      background_color: theme.page,
+      theme_color: theme.page,
+      icons,
+    },
+    null,
+    2
+  );
+}
+
+// Cache-first: the card is a fixed snapshot, so a version stamp derived from
+// the content is what retires the old cache after a rebuild.
+function buildServiceWorker(assets, version) {
+  return `const CACHE = 'mecard-${version}';
+const ASSETS = ${JSON.stringify(assets)};
+
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+});
+
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', (e) => {
+  if (e.request.method !== 'GET') return;
+  e.respondWith(
+    caches.match(e.request).then((hit) => hit || fetch(e.request).catch(() => caches.match('index.html')))
+  );
+});
+`;
+}
+
 // ── Write ────────────────────────────────────────────────────
-writeFileSync("index.html", html);
-console.log(`✓ Built index.html for ${config.name}`);
+rmSync(OUT, { recursive: true, force: true });
+mkdirSync(OUT, { recursive: true });
+
+const written = [];
+function emit(name, data) {
+  writeFileSync(join(OUT, name), data);
+  written.push(name);
+}
+
+emit("index.html", html);
+
+if (opts.pwa) {
+  emit("icon.svg", buildIconSvg());
+  if (photoFile) emit(photoFile.name, photoFile.data);
+  emit("manifest.webmanifest", buildManifest());
+
+  const assets = ["index.html", "manifest.webmanifest", "icon.svg"];
+  if (photoFile) assets.push(photoFile.name);
+  // Version the cache off the page content so a rebuild invalidates it
+  const version = createHash("sha256").update(html).digest("hex").slice(0, 12);
+  emit("sw.js", buildServiceWorker(assets, version));
+}
+
+console.log(`✓ Built ${OUT}/ for ${config.name}`);
+console.log(`  Files: ${written.join(", ")}`);
 console.log(`  QR encodes: ${config.url}`);
-console.log(`  Bands: ${theme.dark} → ${theme.mid} → ${theme.light}`);
-console.log(`  Glint: ${opts.glint ? "on" : "off"}  Waves: ${opts.waves ? "on" : "off"}`);
+console.log(
+  `  Waves: ${opts.waves ? "on" : "off"}  Glint: ${opts.glint ? "on" : "off"}` +
+    `  Share: ${opts.share ? "on" : "off"}  PWA: ${opts.pwa ? "on" : "off"}`
+);
+if (opts.pwa && photoFile && !photoFile.size)
+  console.warn("! could not read photo dimensions — raster icon omitted from manifest");
 
 // ── Dev server ───────────────────────────────────────────────
 if (process.argv.includes("--serve")) {
   const { createServer } = await import("http");
   const port = parseInt(process.env.PORT || "3000", 10);
+
+  const TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".webmanifest": "application/manifest+json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+  };
+
   createServer((req, res) => {
-    try {
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(readFileSync("index.html"));
-    } catch {
-      res.writeHead(500);
-      res.end("Build error");
+    let name = decodeURIComponent(new URL(req.url, "http://x").pathname).slice(1);
+    if (name === "") name = "index.html";
+    const file = join(OUT, name);
+    // Keep the served path inside dist/
+    if (!file.startsWith(OUT) || !existsSync(file)) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      return res.end("Not found");
     }
+    res.writeHead(200, {
+      "Content-Type": TYPES[extname(name).toLowerCase()] || "application/octet-stream",
+      "Cache-Control": "no-store",
+    });
+    res.end(readFileSync(file));
   }).listen(port, () => console.log(`\n  → http://localhost:${port}\n`));
 }

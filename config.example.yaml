@@ -66,5 +66,8 @@ options:
   waves: true            # Animate the band boundaries
   qr: true               # Show the QR code
   saveContact: true      # Show the Save Contact button
+  share: true            # Show Share (only where the device supports it)
+  pwa: true              # Installable to the home screen, works offline
   qrLabel: Scan to connect
   saveLabel: Save Contact
+  shareLabel: Share
