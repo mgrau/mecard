@@ -7,7 +7,8 @@ import { parseArgs } from "util";
 import { join, resolve } from "path";
 import { createHash } from "crypto";
 import QRCode from "qrcode";
-import { BACKGROUNDS, rgb } from "./backgrounds.js";
+import { Resvg } from "@resvg/resvg-js";
+import { BACKGROUNDS, restingWaves, rgb } from "./backgrounds.js";
 import { loadConfig } from "./config.js";
 import { ICONS } from "./icons.js";
 import { buildVCard, withPhoto } from "./vcard.js";
@@ -434,17 +435,56 @@ ${indent(read("card.js"), 4)}
 </html>`;
 
 // ── PWA assets ───────────────────────────────────────────────
+const ICON_FONT = "-apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif";
+
 function buildInitialsSvg() {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <rect width="512" height="512" fill="${theme.dark}"/>
   <text x="256" y="256" text-anchor="middle" dominant-baseline="central"
-    font-family="-apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif"
-    font-size="220" font-weight="600" fill="${theme.text}">${escHtml(initials)}</text>
+    font-family="${ICON_FONT}" font-size="220" font-weight="600" fill="${theme.text}">${escHtml(initials)}</text>
 </svg>`;
 }
 
+// Android's launcher icon. It's "maskable": the launcher crops it to its
+// own shape (circle, squircle, …) instead of shrinking a plain icon onto a
+// white disc. The card's bands fill the square, and the photo (or the
+// initials) sits in the middle with the card's accent ring, inside the
+// central circle, 80% across, that every mask keeps.
+const MASKABLE = [192, 512].map((size) => ({ size, name: `icon-maskable-${size}.png` }));
+
+function buildMaskableSvg() {
+  const C = 256, R = 176;
+  const { mid, dark } = restingWaves();
+  const face = photo
+    ? `<image href="${photo.src}" x="${C - R}" y="${C - R}" width="${2 * R}" height="${2 * R}" preserveAspectRatio="xMidYMid slice" clip-path="url(#face)"/>`
+    : `<text x="${C}" y="${C}" text-anchor="middle" dominant-baseline="central" font-family="${ICON_FONT}" font-size="150" font-weight="600" fill="${theme.text}">${escHtml(initials)}</text>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <clipPath id="face"><circle cx="${C}" cy="${C}" r="${R}"/></clipPath>
+    <linearGradient id="top" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".08"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <radialGradient id="glow"><stop offset="0" stop-color="${theme.accent}" stop-opacity=".45"/><stop offset=".6" stop-color="${theme.accent}" stop-opacity=".12"/><stop offset="1" stop-color="${theme.accent}" stop-opacity="0"/></radialGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2=".55" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".24"/><stop offset=".3" stop-color="#fff" stop-opacity=".05"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000" flood-opacity=".55"/></filter>
+  </defs>
+  <rect width="512" height="512" fill="${theme.light}"/>
+  <g transform="scale(5.12)"><path d="${mid}" fill="${theme.mid}"/><path d="${dark}" fill="${theme.dark}"/></g>
+  <rect width="512" height="512" fill="url(#top)"/>
+  <circle cx="${C}" cy="${C}" r="${R + 46}" fill="url(#glow)"/>
+  <circle cx="${C}" cy="${C}" r="${R}" fill="${theme.dark}" filter="url(#shadow)"/>
+  ${face}
+  <circle cx="${C}" cy="${C}" r="${R}" fill="url(#sheen)"/>
+  <circle cx="${C}" cy="${C}" r="${R - 3}" fill="none" stroke="${theme.accent}" stroke-opacity=".6" stroke-width="7"/>
+  <circle cx="${C}" cy="${C}" r="${R + 1}" fill="none" stroke="#fff" stroke-opacity=".14" stroke-width="2"/>
+</svg>`;
+}
+
+const toPng = (svg, size) => new Resvg(svg, { fitTo: { mode: "width", value: size } }).render().asPng();
+
 function buildManifest() {
-  const icons = [{ src: appIcon.name, sizes: appIcon.sizes, type: appIcon.type, purpose: "any" }];
+  const icons = [
+    { src: appIcon.name, sizes: appIcon.sizes, type: appIcon.type, purpose: "any" },
+    ...MASKABLE.map(({ size, name }) => ({ src: name, sizes: `${size}x${size}`, type: "image/png", purpose: "maskable" })),
+  ];
   return JSON.stringify(
     {
       name: config.name,
@@ -514,6 +554,8 @@ emit("index.html", html);
 
 if (opts.pwa) {
   emit(appIcon.name, photo ? photo.data : buildInitialsSvg());
+  const maskable = buildMaskableSvg();
+  for (const { size, name } of MASKABLE) emit(name, toPng(maskable, size));
   emit("manifest.webmanifest", buildManifest());
   // Version the cache off the page content so a rebuild invalidates it
   const version = createHash("sha256").update(html).digest("hex").slice(0, 12);
@@ -522,7 +564,11 @@ if (opts.pwa) {
 
 // Remove what an earlier build wrote and this one didn't. Only names a
 // build can produce are touched, so --out can point anywhere safely.
-const OUTPUTS = ["index.html", "icon.svg", "manifest.webmanifest", "sw.js", ...Object.values(IMAGE_TYPES).map((t) => `icon.${t.ext}`)];
+const OUTPUTS = [
+  "index.html", "icon.svg", "manifest.webmanifest", "sw.js",
+  ...Object.values(IMAGE_TYPES).map((t) => `icon.${t.ext}`),
+  ...MASKABLE.map((m) => m.name),
+];
 for (const name of OUTPUTS) {
   if (!written.includes(name)) rmSync(join(OUT, name), { force: true });
 }

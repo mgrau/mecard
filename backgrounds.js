@@ -348,6 +348,9 @@ function waveLayer(cfg, cls, animate) {
     </svg>`;
 }
 
+// The two band shapes at rest, in a 100 × 100 box, for the app icon
+export const restingWaves = () => ({ mid: waveFrames(MID)[0], dark: waveFrames(DARK)[0] });
+
 function waves({ animateWaves = true } = {}) {
   return [waveLayer(MID, "layer-mid", animateWaves), waveLayer(DARK, "layer-dark", animateWaves)].join("\n");
 }

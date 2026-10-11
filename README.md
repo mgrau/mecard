@@ -158,7 +158,7 @@ The QR code encodes the card's URL rather than the contact data itself, so it st
 
 **Share** uses the Web Share API to hand the card's URL to the system share sheet. The button stays hidden on platforms without it, so nothing appears broken on older desktop browsers.
 
-**PWA**: with `pwa: true` the build also emits `manifest.webmanifest`, `sw.js`, and an icon (the photo, or an SVG of your initials), so the card can be added to your home screen and opens full-screen and offline. Turn it off if you'd rather have `index.html` be the only output — the page itself is self-contained either way.
+**PWA**: with `pwa: true` the build also emits `manifest.webmanifest`, `sw.js`, and icons, so the card can be added to your home screen and opens full-screen and offline. Turn it off if you'd rather have `index.html` be the only output — the page itself is self-contained either way. The plain icon is your photo (or an SVG of your initials). Android gets a "maskable" one as well: the card's bands with your photo in the middle, drawn so the launcher can crop it to any shape instead of shrinking it onto a white disc.
 
 The build writes to `dist/`, which is gitignored; the workflow publishes that directory. It runs `npm test` first, and runs it on pull requests too, without deploying them.
 

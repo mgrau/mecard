@@ -57,11 +57,24 @@ url: https://example.org/card
 test("the example config builds cleanly under --strict", async () => {
   const { code, stderr, out } = await build("config.example.yaml", "--strict");
   assert.equal(code, 0, stderr);
-  for (const file of ["index.html", "icon.jpg", "manifest.webmanifest", "sw.js"]) {
+  for (const file of ["index.html", "icon.jpg", "icon-maskable-192.png", "icon-maskable-512.png", "manifest.webmanifest", "sw.js"]) {
     assert.ok(existsSync(join(out, file)), `${file} missing`);
   }
   // With a photo, the photo is the icon; the SVG is only for initials
   assert.ok(!existsSync(join(out, "icon.svg")));
+});
+
+test("Android gets maskable PNG icons at their stated sizes", async () => {
+  const { out } = await build("config.example.yaml");
+  const { icons } = JSON.parse(readFileSync(join(out, "manifest.webmanifest"), "utf-8"));
+  const maskable = icons.filter((icon) => icon.purpose === "maskable");
+  assert.deepEqual(maskable.map((icon) => icon.sizes), ["192x192", "512x512"]);
+  for (const icon of maskable) {
+    const png = readFileSync(join(out, icon.src));
+    assert.equal(png.readUInt32BE(0), 0x89504e47, `${icon.src} isn't a PNG`);
+    assert.equal(`${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`, icon.sizes);
+  }
+  assert.ok(icons.some((icon) => icon.purpose === "any"), "browsers still want a plain icon too");
 });
 
 test("the example's vCard parses, with every field intact", async () => {
@@ -255,6 +268,7 @@ test("without a photo, the initials become the icon", async () => {
   assert.match(readFileSync(join(out, "icon.svg"), "utf-8"), />AL<\/text>/);
   assert.match(html, /<link rel="icon" href="icon.svg" type="image\/svg\+xml">/);
   assert.match(readFileSync(join(out, "manifest.webmanifest"), "utf-8"), /"src": "icon.svg"/);
+  assert.ok(existsSync(join(out, "icon-maskable-512.png")));
 });
 
 test("a renamed option still works, with a warning", async () => {
