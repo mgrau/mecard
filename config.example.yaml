@@ -60,6 +60,16 @@ theme:
   page: "#131315"        # Page behind the card
   text: "#fbf9f6"        # Foreground text
 
+# ── Backgrounds ───────────────────────────────
+#  Animated card backgrounds. The first is the
+#  default; list more and visitors can swipe the
+#  card (or tap the dots) to switch.
+#    waves     Diagonal bands in the theme colours
+#    paul      Paul trap with lasers and an ion crystal
+#    spectrum  Barium spectrum with a scanning trace
+backgrounds:
+  - waves
+
 # ── Options ───────────────────────────────────
 options:
   glint: false           # Light sweep across the card

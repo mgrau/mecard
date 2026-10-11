@@ -86,6 +86,23 @@ theme:
 
 Muted text is derived from `text`, so changing that one value keeps the hierarchy consistent.
 
+### Backgrounds
+
+```yaml
+backgrounds:
+  - paul
+  - spectrum
+  - waves
+```
+
+| Name | |
+|---|---|
+| `waves` | The three diagonal bands from `theme`, with travelling boundaries. The default |
+| `paul` | A Paul trap cross-section with a three-ion crystal swaying in its normal modes, lit by 493 nm and 650 nm beams |
+| `spectrum` | The barium emission spectrum as a spectrograph plate, with a scan that traces it along the bottom |
+
+The first entry is what visitors see first. With more than one, they can swipe the card sideways, tap the dots under it, or use the arrow keys to switch. Their last choice is remembered, and a link ending in `#spectrum` (or any other name) opens that background directly. Backgrounds that aren't showing are paused, and all of them hold still for visitors who prefer reduced motion.
+
 ### Options
 
 ```yaml

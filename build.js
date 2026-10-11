@@ -4,6 +4,7 @@ import { parse } from "yaml";
 import QRCode from "qrcode";
 import { extname, join } from "path";
 import { createHash } from "crypto";
+import { BACKGROUNDS } from "./backgrounds.js";
 
 const OUT = "dist";
 
@@ -60,6 +61,21 @@ const opts = {
   saveLabel: config.options?.saveLabel ?? "Save Contact",
   shareLabel: config.options?.shareLabel ?? "Share",
 };
+
+// ── Backgrounds ──────────────────────────────────────────────
+// The first entry is the default; with more than one, visitors swipe
+// the card (or tap the dots under it) to switch.
+const BG_LABELS = { waves: "Waves", ...Object.fromEntries(Object.entries(BACKGROUNDS).map(([k, v]) => [k, v.label])) };
+const backgrounds = (() => {
+  const list = [].concat(config.backgrounds ?? ["waves"]).map((b) => String(b).trim().toLowerCase());
+  const known = list.filter((b) => {
+    if (BG_LABELS[b]) return true;
+    console.warn(`! unknown background: ${b} — choose from ${Object.keys(BG_LABELS).join(", ")}`);
+    return false;
+  });
+  const unique = [...new Set(known)];
+  return unique.length ? unique : ["waves"];
+})();
 
 const accentRgb = hexToRgb(theme.accent);
 const popRgb = hexToRgb(theme.pop);
@@ -360,6 +376,25 @@ const layersSvg = [
   waveLayer(ASH, theme.dark, "layer-ash"),
 ].join("\n");
 
+// One absolutely positioned layer per background; the first starts visible
+const bgLayersHtml = backgrounds
+  .map((name, i) => {
+    const inner = name === "waves" ? layersSvg : BACKGROUNDS[name].render();
+    const style = name === "waves" ? ' style="background:var(--teal)"' : "";
+    return `    <div class="bg${i === 0 ? " on" : ""}" data-bg="${name}"${style}>\n${inner}\n    </div>`;
+  })
+  .join("\n");
+
+const bgDotsHtml =
+  backgrounds.length > 1
+    ? `  <nav class="bg-dots" aria-label="Card background">
+${backgrounds
+  .map((name, i) => `    <button type="button" class="bg-dot" data-bg="${name}" aria-label="${escHtml(BG_LABELS[name])}" aria-pressed="${i === 0}"></button>`)
+  .join("\n")}
+  </nav>
+  <p class="bg-name" aria-live="polite"></p>`
+    : "";
+
 // ── Full HTML ────────────────────────────────────────────────
 const html = `<!DOCTYPE html>
 <html lang="en">
@@ -406,8 +441,10 @@ ${
       min-height: 100vh;
       min-height: 100dvh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+      gap: 0.9rem;
       background: var(--page);
       background:
         radial-gradient(ellipse at 50% 35%, rgba(${accentRgb}, 0.03) 0%, transparent 55%),
@@ -433,6 +470,7 @@ ${
         0 0 0 1px rgba(255, 255, 255, 0.07);
       animation: cardEntrance 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
       opacity: 0;
+      touch-action: pan-y;
     }
 
 ${
@@ -475,6 +513,83 @@ ${
         inset 0 1px 0 rgba(255, 255, 255, 0.16),
         inset 0 -1px 0 rgba(0, 0, 0, 0.35);
     }
+
+    /* ── Backgrounds ───────────────────── */
+    .bg {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      overflow: hidden;
+      border-radius: inherit;
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.7s ease, visibility 0s linear 0.7s;
+    }
+
+    .bg.on {
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 0.7s ease;
+    }
+
+    .bg-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .bg-dots {
+      display: flex;
+      gap: 0.25rem;
+      animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.9s backwards;
+    }
+
+    .bg-dot {
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      border: 0;
+      background: none;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+    }
+
+    .bg-dot::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: rgba(${textRgb}, 0.28);
+      transition: background 0.3s ease, transform 0.3s ease;
+    }
+
+    .bg-dot[aria-pressed="true"]::before {
+      background: var(--accent);
+      transform: scale(1.25);
+    }
+
+    .bg-dot:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -4px;
+      border-radius: 50%;
+    }
+
+    .bg-name {
+      min-height: 1.2em;
+      margin-top: -0.6rem;
+      font-size: 0.74rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .bg-name.show { opacity: 1; }
 
     /* ── Wave layers ───────────────────── */
     .wave-layer {
@@ -834,7 +949,7 @@ ${
 </head>
 <body>
   <main class="card">
-${layersSvg}
+${bgLayersHtml}
 
     <div class="content">
 ${buildPhotoHtml()}
@@ -853,11 +968,79 @@ ${buildLinksHtml()}
 ${buildQrSection()}
     </div>
   </main>
+${bgDotsHtml}
   <script>
-    // CSS can't stop SMIL, so honour reduced-motion for the wave animation here.
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      for (const svg of document.querySelectorAll('svg.wave-layer')) svg.pauseAnimations();
-    }
+    // ── Backgrounds ──
+    // CSS can't stop SMIL, so motion is paused here: always for reduced
+    // motion, and otherwise for every background that isn't showing.
+    (() => {
+      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const card = document.querySelector('.card');
+      const layers = [...card.querySelectorAll('.bg')];
+      const dots = [...document.querySelectorAll('.bg-dot')];
+      const nameEl = document.querySelector('.bg-name');
+      const names = layers.map((l) => l.dataset.bg);
+      let current = 0, nameTimer;
+
+      function show(i, announce) {
+        current = (i + layers.length) % layers.length;
+        layers.forEach((layer, k) => {
+          const on = k === current;
+          layer.classList.toggle('on', on);
+          for (const svg of layer.querySelectorAll('svg')) {
+            if (on && !reduce) { svg.setCurrentTime(0); svg.unpauseAnimations(); }
+            else svg.pauseAnimations();
+          }
+        });
+        dots.forEach((d, k) => d.setAttribute('aria-pressed', String(k === current)));
+        if (announce && nameEl) {
+          nameEl.textContent = dots[current]?.getAttribute('aria-label') || '';
+          nameEl.classList.add('show');
+          clearTimeout(nameTimer);
+          nameTimer = setTimeout(() => nameEl.classList.remove('show'), 1600);
+        }
+        try { localStorage.setItem('mecard-bg', names[current]); } catch (e) {}
+      }
+
+      // Start from a #name link, else the visitor's last choice, else the default
+      let start = 0;
+      try {
+        const want = location.hash.slice(1) || localStorage.getItem('mecard-bg');
+        if (names.includes(want)) start = names.indexOf(want);
+      } catch (e) {}
+      show(start, false);
+      if (layers.length < 2) return;
+
+      dots.forEach((d, k) => d.addEventListener('click', () => show(k, true)));
+      addEventListener('keydown', (e) => {
+        if (e.target.closest('input, textarea')) return;
+        if (e.key === 'ArrowRight') show(current + 1, true);
+        if (e.key === 'ArrowLeft') show(current - 1, true);
+      });
+
+      // Horizontal swipe on the card; vertical drags still scroll the page
+      let x0 = null, y0 = 0, swiped = false;
+      card.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        x0 = e.clientX; y0 = e.clientY; swiped = false;
+      });
+      addEventListener('pointerup', (e) => {
+        if (x0 === null) return;
+        const dx = e.clientX - x0, dy = e.clientY - y0;
+        x0 = null;
+        if (Math.abs(dx) > 45 && Math.abs(dx) > 1.5 * Math.abs(dy)) {
+          swiped = true;
+          show(current + (dx < 0 ? 1 : -1), true);
+        }
+      });
+      card.addEventListener('pointercancel', () => { x0 = null; });
+      // Native image/link dragging would cancel a mouse swipe on desktop
+      card.addEventListener('dragstart', (e) => e.preventDefault());
+      // A swipe that ends on a link or button shouldn't also follow it
+      card.addEventListener('click', (e) => {
+        if (swiped) { e.preventDefault(); e.stopPropagation(); swiped = false; }
+      }, true);
+    })();
 ${
   opts.share
     ? `
@@ -993,7 +1176,7 @@ console.log(`✓ Built ${OUT}/ for ${config.name}`);
 console.log(`  Files: ${written.join(", ")}`);
 console.log(`  QR encodes: ${config.url}`);
 console.log(
-  `  Waves: ${opts.waves ? "on" : "off"}  Glint: ${opts.glint ? "on" : "off"}` +
+  `  Backgrounds: ${backgrounds.join(", ")}  Waves: ${opts.waves ? "on" : "off"}  Glint: ${opts.glint ? "on" : "off"}` +
     `  Share: ${opts.share ? "on" : "off"}  PWA: ${opts.pwa ? "on" : "off"}`
 );
 if (opts.pwa && photoFile && !photoFile.size)
