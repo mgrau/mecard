@@ -1,0 +1,666 @@
+/* ─────────────────────────────────────────────────────────────
+   Card styles. build.js inlines this after a :root block that sets
+   the theme: --dark, --mid, --light, --accent, --page and --text as
+   colours, and --accent-rgb, --pop-rgb and --text-rgb as "r, g, b"
+   triplets for use inside rgba().
+   ───────────────────────────────────────────────────────────── */
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --text-muted: rgba(var(--text-rgb), 0.82);
+  --text-dim: rgba(var(--text-rgb), 0.6);
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  background: var(--page);
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(var(--accent-rgb), 0.03) 0%, transparent 55%),
+    var(--page);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  padding: 1rem;
+  /* Installed on iOS, the page runs up under the status bar */
+  padding:
+    max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+}
+
+/* ── Card ──────────────────────────── */
+.card {
+  position: relative;
+  max-width: 400px;
+  width: 100%;
+  border-radius: 26px;
+  overflow: hidden;
+  background: var(--light);
+  box-shadow:
+    0 1px 1px rgba(255, 255, 255, 0.09) inset,
+    0 40px 80px -20px rgba(0, 0, 0, 0.7),
+    0 18px 36px -12px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.07);
+  animation: cardEntrance 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+/* Horizontal drags switch backgrounds; pinch-zoom stays available
+   wherever the browser understands pinch-zoom here */
+.card.swipe {
+  touch-action: pan-y;
+  touch-action: pan-y pinch-zoom;
+}
+
+/* Moving specular sweep, with options.glint */
+.card.glint::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: inherit;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.03) 44%,
+    rgba(255, 255, 255, 0.07) 50%,
+    rgba(255, 255, 255, 0.03) 56%,
+    transparent 70%
+  );
+  background-size: 250% 100%;
+  background-position: -50% 0;
+  pointer-events: none;
+  animation: shimmer 11s ease-in-out 2.5s infinite;
+}
+
+/* Static glass sheen: bright top-left falloff + rim light */
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, transparent 22%),
+    radial-gradient(120% 80% at 12% -10%, rgba(255, 255, 255, 0.08) 0%, transparent 55%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+}
+
+/* ── Backgrounds ───────────────────── */
+.bg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.7s ease, visibility 0s linear 0.7s;
+}
+
+.bg.on {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.7s ease;
+}
+
+.bg-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.bg-dots {
+  display: flex;
+  gap: 0.25rem;
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.9s backwards;
+}
+
+.bg-dot {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.bg-dot::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(var(--text-rgb), 0.28);
+  transition: background 0.3s ease, transform 0.3s ease;
+}
+
+.bg-dot[aria-pressed="true"]::before {
+  background: var(--accent);
+  transform: scale(1.25);
+}
+
+.bg-dot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -4px;
+  border-radius: 50%;
+}
+
+.bg-name {
+  min-height: 1.2em;
+  margin-top: -0.6rem;
+  font-size: 0.74rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.bg-name.show { opacity: 1; }
+
+/* ── Wave layers ───────────────────── */
+/* Back band is the card colour; mid and dark stack on top in order */
+.wave-layer {
+  position: absolute;
+  width: 108%;
+  height: 108%;
+  top: -4%;
+  left: -4%;
+  pointer-events: none;
+}
+
+.bg[data-bg="waves"] { background: var(--light); }
+.layer-mid { fill: var(--mid); }
+.layer-dark { fill: var(--dark); }
+
+/* ── Content ───────────────────────── */
+.content {
+  position: relative;
+  z-index: 3;
+  padding: 2.5rem 2rem 2rem;
+  text-align: center;
+}
+
+/* ── Photo ─────────────────────────── */
+.photo-wrap {
+  position: relative;
+  width: 156px;
+  height: 156px;
+  margin: 0 auto 1.4rem;
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.15s backwards;
+}
+
+.photo-glow {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.16) 0%, transparent 70%);
+  animation: pulse 5s ease-in-out infinite;
+}
+
+.photo {
+  width: 156px;
+  height: 156px;
+  border-radius: 50%;
+  object-fit: cover;
+  position: relative;
+  z-index: 1;
+  border: 3px solid rgba(var(--accent-rgb), 0.34);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.5),
+    0 3px 10px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    inset 0 2px 6px rgba(255, 255, 255, 0.14);
+}
+
+/* Glass highlight arc over the photo */
+.photo-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: 50%;
+  pointer-events: none;
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.05) 28%, transparent 52%);
+}
+
+.photo-initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.25), rgba(var(--accent-rgb), 0.08));
+  color: var(--text);
+  font-size: 3rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+/* ── Identity ──────────────────────── */
+.name {
+  font-size: 2rem;
+  font-weight: 650;
+  color: var(--text);
+  letter-spacing: -0.015em;
+  margin-bottom: 0.45rem;
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s backwards;
+}
+
+.subtitle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 1.5rem;
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.26s backwards;
+}
+
+.sub-title {
+  font-size: 1.05rem;
+  color: var(--text-muted);
+}
+
+.sub-tagline {
+  font-size: 0.97rem;
+  color: var(--accent);
+  font-style: italic;
+}
+
+.sub-org {
+  font-size: 0.92rem;
+  color: var(--text-dim);
+}
+
+/* ── Now ───────────────────────────── */
+.now {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: fit-content;
+  max-width: 100%;
+  margin: -0.6rem auto 1.4rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  line-height: 1.3;
+  text-align: left;
+  color: rgba(var(--text-rgb), 0.92);
+  background: linear-gradient(155deg, rgba(var(--accent-rgb), 0.2), rgba(var(--accent-rgb), 0.06));
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.3s backwards;
+}
+
+.now a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.now a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.now-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: nowPulse 2.4s ease-out infinite;
+}
+
+/* ── Contact info ──────────────────── */
+.contact-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: 1.25rem;
+}
+
+.contact-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 10px;
+  text-decoration: none;
+  color: rgba(var(--text-rgb), 0.95);
+  font-size: 1rem;
+  transition: background 0.25s ease, color 0.25s ease;
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.contact-row:hover {
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.contact-row svg {
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+/* ── Link buttons ──────────────────── */
+.links {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.link-btn {
+  width: 50px;
+  height: 50px;
+  border-radius: 15px;
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.03));
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  text-decoration: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 4px 12px rgba(0, 0, 0, 0.28);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.link-btn svg {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.link-btn:hover, .link-btn:active {
+  background: linear-gradient(155deg, rgba(var(--accent-rgb), 0.28), rgba(var(--accent-rgb), 0.08));
+  border-color: rgba(var(--accent-rgb), 0.4);
+  color: #fff;
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 10px 24px rgba(var(--accent-rgb), 0.22),
+    0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.link-btn:active {
+  transform: translateY(-1px) scale(0.97);
+}
+
+/* ── QR ─────────────────────────────── */
+.qr-section {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.qr-container {
+  display: block;
+  width: 140px;
+  height: 140px;
+  margin: 0 auto;
+  padding: 13px;
+  color: inherit;
+  font: inherit;
+  cursor: zoom-in;
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.025));
+  border-radius: 19px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 6px 18px rgba(0, 0, 0, 0.3);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.35s ease;
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.7s backwards;
+}
+
+.qr-container:hover {
+  transform: translateY(-2px);
+  border-color: rgba(var(--accent-rgb), 0.4);
+}
+
+.qr-container:active { transform: scale(0.97); }
+
+.qr-container:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.qr-container svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.qr-label {
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  margin-top: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.75s backwards;
+}
+
+/* ── Actions ───────────────────────── */
+.actions {
+  display: flex;
+  gap: 0.55rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 1.1rem;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.7rem 1.35rem;
+  border-radius: 13px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 0.94rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    0 5px 16px rgba(0, 0, 0, 0.32);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  font-family: inherit;
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.8s backwards;
+}
+
+.action-btn[hidden] { display: none; }
+.action-btn svg { width: 19px; height: 19px; }
+.action-btn:active { transform: scale(0.97); }
+
+.action-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.save-btn {
+  background: linear-gradient(155deg, rgba(var(--pop-rgb), 0.34), rgba(var(--pop-rgb), 0.14));
+  border: 1px solid rgba(var(--pop-rgb), 0.45);
+  color: #fbeae5;
+}
+
+.save-btn:hover {
+  background: linear-gradient(155deg, rgba(var(--pop-rgb), 0.5), rgba(var(--pop-rgb), 0.24));
+  border-color: rgba(var(--pop-rgb), 0.65);
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 10px 26px rgba(var(--pop-rgb), 0.3),
+    0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.share-btn {
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.035));
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  color: rgba(var(--text-rgb), 0.92);
+}
+
+.share-btn:hover {
+  background: linear-gradient(155deg, rgba(var(--accent-rgb), 0.3), rgba(var(--accent-rgb), 0.1));
+  border-color: rgba(var(--accent-rgb), 0.45);
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 10px 26px rgba(var(--accent-rgb), 0.22),
+    0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Full-screen QR ────────────────── */
+.qr-full {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: max(1.5rem, env(safe-area-inset-top)) 1.5rem max(1.5rem, env(safe-area-inset-bottom));
+  border: 0;
+  background: #fff;
+  color: #16161a;
+  font-family: inherit;
+  text-align: center;
+  cursor: zoom-out;
+}
+
+.qr-full[open] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  animation: fadeIn 0.25s ease;
+}
+
+.qr-full::backdrop { background: #fff; }
+
+.qr-full-code {
+  width: min(84vw, 62vh, 560px);
+  aspect-ratio: 1;
+  margin-bottom: 1.2rem;
+}
+
+.qr-full-code svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Black on white, which every scanner reads */
+.qr-full-code path[stroke] {
+  stroke: #000;
+  stroke-opacity: 1;
+}
+
+.qr-full-name {
+  font-size: 1.5rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.qr-full-url {
+  font-size: 0.95rem;
+  color: #5c5c66;
+}
+
+.qr-full-close {
+  position: absolute;
+  top: max(1rem, env(safe-area-inset-top));
+  right: max(1rem, env(safe-area-inset-right));
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: #efeff2;
+  color: #3a3a42;
+  font: 400 1.7rem/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.qr-full-close:focus-visible {
+  outline: 2px solid #16161a;
+  outline-offset: 2px;
+}
+
+/* ── Animations ────────────────────── */
+@keyframes cardEntrance {
+  from { opacity: 0; transform: translateY(28px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%      { opacity: 0.85; transform: scale(1.05); }
+}
+
+@keyframes nowPulse {
+  0%        { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.55); }
+  70%, 100% { box-shadow: 0 0 0 7px rgba(var(--accent-rgb), 0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+}
+
+@keyframes shimmer {
+  0%       { opacity: 0; background-position: -50% 0; }
+  8%       { opacity: 1; }
+  38%      { opacity: 1; background-position: 150% 0; }
+  50%, 100% { opacity: 0; background-position: 150% 0; }
+}
+
+/* ── Responsive ────────────────────── */
+@media (max-width: 420px) {
+  .content { padding: 2rem 1.5rem 1.75rem; }
+  .card { border-radius: 20px; }
+  .name { font-size: 1.75rem; }
+  .photo-wrap { width: 134px; height: 134px; }
+  .photo { width: 134px; height: 134px; }
+  .link-btn { width: 46px; height: 46px; border-radius: 13px; }
+  .link-btn svg { width: 26px; height: 26px; }
+  .qr-container { width: 125px; height: 125px; padding: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

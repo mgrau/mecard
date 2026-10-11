@@ -4,12 +4,19 @@
   "description": "Generate a self-contained digital business card from simple config files",
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "node build.js",
-    "dev": "node build.js --serve"
+    "dev": "node dev.js",
+    "test": "node --test \"test/*.test.js\""
   },
   "dependencies": {
     "qrcode": "^1.5.4",
     "yaml": "^2.7.0"
+  },
+  "devDependencies": {
+    "ical.js": "^2.2.1"
   }
 }

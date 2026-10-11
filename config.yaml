@@ -24,6 +24,13 @@ website: https://graulab.org
 #  Omit to fall back to initials.
 photo: photo.jpg
 
+# ── Now ───────────────────────────────────────
+#  Shown under the title until the end of `until`.
+# now:
+#   text: At DAMOP 2027 — come say hi
+#   until: 2027-06-04
+#   url: https://example.org/my-talk   # optional
+
 # ── Links ─────────────────────────────────────
 #  Icon buttons. See README for all icon names.
 links:
@@ -71,7 +78,7 @@ backgrounds:
 # ── Options ───────────────────────────────────
 options:
   glint: false           # Light sweep across the card
-  waves: true            # Animate the band boundaries
+  animateWaves: true     # Animate the waves background
   qr: true               # Show the QR code
   saveContact: true      # Show the Save Contact button
   share: true            # Show Share (only where the device supports it)

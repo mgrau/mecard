@@ -11,6 +11,15 @@ title: Research Fellow
 tagline: Analytical Engines
 organization: Example University
 department: Department of Mathematics
+lang: en                 # Language of the page
+
+#  How contact apps should file the name, when
+#  "last word is the family name" gets it wrong:
+# nameParts:
+#   given: Augusta Ada
+#   family: King
+#   prefix: Countess
+#   suffix:
 
 # ── Contact ───────────────────────────────────
 #  Shown as readable text. Leave blank to omit.
@@ -23,9 +32,19 @@ website: https://example.edu/~ada
 #  Omit to fall back to initials.
 photo: photo.jpg
 
+# ── Now ───────────────────────────────────────
+#  A short line about what you're up to, shown
+#  under your title until the end of `until`.
+# now:
+#   text: At DAMOP 2027 — come say hi
+#   until: 2027-06-04
+#   url: https://example.org/my-talk   # optional
+
 # ── Links ─────────────────────────────────────
 #  Icon buttons. Contact details above already
 #  appear as text, so don't repeat them here.
+#  `icon` is a name from README.md, or a path to
+#  an .svg file of your own.
 links:
   - label: Google Scholar
     url: https://scholar.google.com/citations?user=XXXXXXXX
@@ -73,7 +92,7 @@ backgrounds:
 # ── Options ───────────────────────────────────
 options:
   glint: false           # Light sweep across the card
-  waves: true            # Animate the band boundaries
+  animateWaves: true     # Animate the waves background
   qr: true               # Show the QR code
   saveContact: true      # Show the Save Contact button
   share: true            # Show Share (only where the device supports it)

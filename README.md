@@ -16,9 +16,14 @@ cp config.example.yaml config.yaml
 Edit `config.yaml`, add a square `photo.jpg` (~400×400px), then:
 
 ```bash
-npm run dev     # build and serve at localhost:3000
-npm run build   # write index.html only
+npm run dev     # serve at localhost:3000, rebuilding and reloading on every save
+npm run build   # write dist/ once
+npm test        # build sample configs and check the output
 ```
+
+Both `dev` and `build` take `--config <file>` and `--out <dir>`, so one checkout can produce several cards (`npm run build -- --config talk.yaml --out dist-talk`). Paths inside a config, such as `photo`, are relative to that config file.
+
+The build checks the config as it reads it and prints a warning for anything it has to work around: a misspelt key (with a suggestion), a colour that isn't a hex value, a link without a `url`, an unknown icon. Add `--strict` to make warnings fail the build.
 
 ## Deploy to GitHub Pages
 
@@ -41,13 +46,36 @@ Set `url:` in `config.yaml` to that address. The QR code encodes it, so if they 
 | `tagline` | Short line under the title, in the accent colour |
 | `organization` | |
 | `department` | Joined to `organization` with a `·` |
+| `lang` | Language of the page, e.g. `en` or `pt-BR`. Defaults to `en` |
 | `email` | Shown as text, tap to send |
 | `phone` | Shown as text, tap to call |
 | `website` | Shown as text, opens in a new tab |
-| `photo` | Local path or URL. Omit to show initials instead |
+| `photo` | Local path or URL (a URL is downloaded at build time). Omit to show initials instead |
 | `url` | Required. Where the card is hosted — encoded into the QR code |
 
 Any of `email`, `phone`, `website`, and `photo` can be left out.
+
+Contact apps file the name by its last word, which suits "Ada Lovelace" but not "Johannes van der Waals" or "Jane Doe Jr.". Spell it out when it matters:
+
+```yaml
+nameParts:
+  given: Johannes Diderik
+  family: van der Waals
+  prefix: Prof.        # also: middle, suffix
+```
+
+### Now
+
+A short line about what you're up to, shown in a pill under your title:
+
+```yaml
+now:
+  text: At DAMOP 2027 — come say hi
+  until: 2027-06-04          # optional: hidden after this day
+  url: https://example.org   # optional: makes the line a link
+```
+
+`now: Back in the lab` works too. Once `until` has passed, the build leaves the line out, and a card built earlier hides it when it loads, so it retires on time even if nobody rebuilds.
 
 ### Links
 
@@ -65,9 +93,9 @@ links:
 
 Available icons:
 
-`scholar` `orcid` `file` `github` `linkedin` `twitter` `globe` `mail` `phone` `link` `calendar` `youtube` `mastodon` `bluesky` `instagram`
+`scholar` `orcid` `arxiv` `inspire` `researchgate` `file` `github` `linkedin` `twitter` `bluesky` `mastodon` `instagram` `youtube` `globe` `mail` `phone` `calendar` `link`
 
-An unknown name falls back to `link`.
+`icon` can also be a path to an `.svg` file of your own (`icon: icons/lab.svg`); give it a `viewBox` and use `currentColor` so it takes the button's colour. An unknown name warns and falls back to `link`.
 
 ### Theme
 
@@ -84,7 +112,7 @@ theme:
   text:   "#fbf9f6"   # foreground text
 ```
 
-Muted text is derived from `text`, so changing that one value keeps the hierarchy consistent.
+Muted text is derived from `text`, so changing that one value keeps the hierarchy consistent. Colours are hex, like `"#1b4742"` or the shorthand `"#fff"`, and need their quotes: unquoted, the `#` starts a YAML comment and the colour is silently lost (the build warns when that happens).
 
 ### Backgrounds
 
@@ -101,14 +129,14 @@ backgrounds:
 | `paul` | A Paul trap cross-section with a three-ion crystal swaying in its normal modes, lit by 493 nm and 650 nm beams |
 | `spectrum` | The barium emission spectrum as a spectrograph plate, with a scan that traces it along the bottom |
 
-The first entry is what visitors see first. With more than one, they can swipe the card sideways, tap the dots under it, or use the arrow keys to switch. Their last choice is remembered, and a link ending in `#spectrum` (or any other name) opens that background directly. Backgrounds that aren't showing are paused, and all of them hold still for visitors who prefer reduced motion.
+The first entry is what visitors see first. With more than one, they can swipe the card sideways, tap the dots under it, or use the arrow keys to switch. Their last choice is remembered, and a link ending in `#spectrum` (or any other name) opens that background directly. Backgrounds that aren't showing are paused, and visitors who prefer reduced motion get each one as a still frame. The artwork is pinned to the bottom of the card and dims itself behind the text, wherever the text ends up, so it holds together however long or short the card is.
 
 ### Options
 
 ```yaml
 options:
   glint: false              # light sweep across the card
-  waves: true               # animate the band boundaries
+  animateWaves: true        # animate the band boundaries in the waves background
   qr: true
   saveContact: true
   share: true               # Share button, where the device supports it
@@ -122,15 +150,21 @@ All default to the values above. Animation is disabled automatically for visitor
 
 ## Notes
 
-The QR code encodes the card's URL rather than the contact data itself, so it stays sparse enough to scan quickly and you can change your details without the code going stale.
+The QR code encodes the card's URL rather than the contact data itself, so it stays sparse enough to scan quickly and you can change your details without the code going stale. Tap it to fill the screen with a black-on-white copy, which any camera reads easily; the screen stays awake until you close it.
 
-**Save Contact** downloads a vCard 3.0 `.vcf` with the photo embedded, which imports cleanly on iOS and Android.
+**Save Contact** downloads a vCard 3.0 `.vcf` with the photo embedded, which imports cleanly on iOS and Android. (The page holds the vCard without the photo and adds it from the `<img>` when it's saved, so the image isn't carried twice.) The tagline goes in as a note, and the card's URL and each link go in labelled ("Google Scholar", "CV"), which iOS shows; other apps list them as plain URLs.
+
+**Search engines** get a schema.org `Person` with your title, organization and contact details, and the links that are profiles (Scholar, ORCID, GitHub and so on, but not files like a CV) listed as `sameAs`.
 
 **Share** uses the Web Share API to hand the card's URL to the system share sheet. The button stays hidden on platforms without it, so nothing appears broken on older desktop browsers.
 
-**PWA**: with `pwa: true` the build also emits `manifest.webmanifest`, `sw.js`, and icons, so the card can be added to your home screen and opens full-screen and offline. Turn it off if you'd rather have `index.html` be the only output — the page itself is self-contained either way.
+**PWA**: with `pwa: true` the build also emits `manifest.webmanifest`, `sw.js`, and an icon (the photo, or an SVG of your initials), so the card can be added to your home screen and opens full-screen and offline. Turn it off if you'd rather have `index.html` be the only output — the page itself is self-contained either way.
 
-The build writes to `dist/`, which is gitignored; the workflow publishes that directory.
+The build writes to `dist/`, which is gitignored; the workflow publishes that directory. It runs `npm test` first, and runs it on pull requests too, without deploying them.
+
+## Changing the card itself
+
+`build.js` assembles the page from the config. The look lives in `card.css` and the behaviour in `card.js`, both plain files that the build inlines; the theme reaches the stylesheet as CSS variables. Backgrounds are in `backgrounds.js` and icons in `icons.js`. `npm run dev` rebuilds when any of them change.
 
 ## License
 
